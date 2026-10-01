@@ -208,12 +208,22 @@ main {
 #chart { width: 100%; display: block; overflow: visible; }
 #chart text { font-family: var(--font-body); font-weight: 700; font-size: 11px; fill: var(--muted); }
 #chart .now-label { fill: var(--ink); font-weight: 800; }
-.legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin-top: 0.75rem; font-size: 0.75rem; font-weight: 700; color: var(--muted); }
-.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
-.legend i { width: 0.625rem; height: 0.875rem; background: var(--ink); display: inline-block; border-radius: 2px; }
-.legend i.p {
-  width: 1.4rem; height: 0.6rem; border: 1.5px solid var(--ink); border-radius: 999px;
-  background-image: radial-gradient(var(--ink) 1px, transparent 1.3px); background-size: 4px 4px;
+#chart .zone-label { fill: var(--zone-ink); font-size: 10px; }
+#chart .tag { fill: var(--ink); font-size: 11px; }
+#chart .tag.main { font-weight: 800; }
+:root {
+  --zone-1: #eef3ff; --zone-2: #dde7ff; --zone-3: #cbd9ff; --zone-ink: #5b6b8a;
+  --bar-1: #a9c3ff; --bar-2: #2f6bff; --bar-3: #163a9e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --zone-1: #151c2c; --zone-2: #1a2440; --zone-3: #202d52; --zone-ink: #8ea2c8;
+    --bar-1: #4f6fae; --bar-2: #6f9bff; --bar-3: #c2d4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --zone-1: #151c2c; --zone-2: #1a2440; --zone-3: #202d52; --zone-ink: #8ea2c8;
+  --bar-1: #4f6fae; --bar-2: #6f9bff; --bar-3: #c2d4ff;
 }
 
 /* ---------- Case épisodes ---------- */
@@ -233,6 +243,15 @@ main {
 .drops { display: inline-flex; gap: 2px; }
 .drops svg { width: 10px; height: 13px; }
 .empty { margin: 0; font-weight: 700; color: var(--muted); }
+
+/* ---------- Image du jour NASA ---------- */
+.apod-img { display: block; width: 100%; height: auto; border: var(--border) solid var(--ink); border-radius: 4px; background: var(--tone); }
+.apod h3 { margin: 0.75rem 0 0.15rem; font: 400 1.125rem/1.2 var(--font-display); text-wrap: balance; }
+.apod .meta { margin: 0; font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+.apod details { margin-top: 0.6rem; font-size: 0.875rem; }
+.apod summary { cursor: pointer; font-weight: 800; }
+.apod details p { margin: 0.4rem 0 0; color: var(--muted); line-height: 1.55; }
+.apod a { color: inherit; font-weight: 800; }
 
 /* ---------- Pied ---------- */
 footer {
@@ -289,10 +308,6 @@ button[disabled] { opacity: 0.55; cursor: default; }
       <span id="total"></span>
     </div>
     <svg id="chart" role="img" aria-label="Intensité de pluie par quart d'heure"></svg>
-    <div class="legend">
-      <span><i></i>Pluie au quart d'heure</span>
-      <span><i class="p"></i>Probabilité par heure</span>
-    </div>
   </section>
 
   <section class="panel episodes">
@@ -304,8 +319,19 @@ button[disabled] { opacity: 0.55; cursor: default; }
     <p class="empty" id="no-episodes" hidden>Aucun sur les prochaines 24 heures.</p>
   </section>
 
+  <section class="panel apod" id="apod" hidden>
+    <div class="panel-head">
+      <span class="caption">IMAGE DU JOUR · NASA</span>
+      <span id="apod-date"></span>
+    </div>
+    <a id="apod-link" href="https://science.nasa.gov/apod/" target="_blank" rel="noopener"><img id="apod-img" class="apod-img" alt="" decoding="async"></a>
+    <h3 id="apod-title"></h3>
+    <p class="meta" id="apod-credit"></p>
+    <details><summary>Explication (en anglais)</summary><p id="apod-text"></p></details>
+  </section>
+
   <footer>
-    <p>Modèle AROME · <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a><br><span id="updated"></span></p>
+    <p>Modèle AROME · <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · Image : <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">NASA APOD</a><br><span id="updated"></span></p>
     <button type="button" id="refresh">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
       Actualiser
@@ -590,78 +616,120 @@ function render() {
 }
 
 /* ---------- Frise SVG ---------- */
+// Barres au quart d'heure colorées selon l'intensité, sur trois zones nommées,
+// et une étiquette par épisode (heures · intensité · cumul · risque).
 
-function drawChart({ window, proba, now }) {
+function drawChart({ window, now, episodes }) {
   const svg = $("chart");
   const W = svg.clientWidth || 320;
-  const top = 18, barsH = 104, gap = 10, probH = 10;
-  const probY = top + barsH + gap, axisY = probY + probH + 18, H = axisY + 4;
+  const css = getComputedStyle(document.documentElement);
+  const c = (n) => css.getPropertyValue(n).trim();
+  const ink = c("--ink"), muted = c("--muted"), panel = c("--panel");
+
+  const tags = episodes.slice(0, 3);
+  const tagH = 22, tagsTop = 4;
+  const top = tagsTop + tags.length * tagH + (tags.length ? 12 : 4);
+  const barsH = 96, base = top + barsH, axisY = base + 17, H = axisY + 4;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("height", H);
+
   const step = W / SLOTS;
-  const max = Math.max(4, ...window.map((s) => s.mmh));
-  const y = (v) => top + barsH - (v / max) * barsH;
-  const css = getComputedStyle(document.documentElement);
-  const ink = css.getPropertyValue("--ink").trim();
-  const tone = css.getPropertyValue("--tone").trim();
+  const max = Math.max(8, ...window.map((x) => x.mmh));
+  const y = (v) => base - (Math.min(v, max) / max) * barsH;
+  const parts = [];
 
-  // Trames de points : plus la probabilité est forte, plus les points sont gros
-  const patterns = [0.7, 1.2, 1.7, 2.3].map((r, k) =>
-    `<pattern id="tone${k}" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="${r}" fill="${ink}"/></pattern>`).join("");
-  const parts = [`<defs>${patterns}</defs>`];
-
-  [[2, "2 mm/h"], [5, "5 mm/h"], [10, "10 mm/h"]].forEach(([v, label]) => {
-    if (v > max) return;
-    parts.push(`<line x1="0" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="${tone}" stroke-width="2" stroke-dasharray="2 5" stroke-linecap="round"/>`);
-    parts.push(`<text x="${W}" y="${y(v) - 5}" text-anchor="end">${label}</text>`);
+  // Zones nommées
+  [[0, 2, "faible", "--zone-1"], [2, 5, "modérée", "--zone-2"], [5, max, "forte", "--zone-3"]].forEach(([lo, hi, name, z]) => {
+    parts.push(`<rect x="0" y="${y(hi)}" width="${W}" height="${y(lo) - y(hi)}" fill="${c(z)}"/>`);
   });
-  parts.push(`<line x1="0" x2="${W}" y1="${top + barsH}" y2="${top + barsH}" stroke="${ink}" stroke-width="2"/>`);
 
+  // Minuit
   window.forEach((s, i) => {
     if (i === 0 || s.t.slice(11, 16) !== "00:00") return;
     const x = i * step;
-    parts.push(`<line x1="${x}" x2="${x}" y1="${top - 8}" y2="${top + barsH}" stroke="${tone}" stroke-width="2"/>`);
-    if (x < W - 50) parts.push(`<text x="${x + 5}" y="${top - 1}">demain</text>`);
+    parts.push(`<line x1="${x}" x2="${x}" y1="${top}" y2="${base}" stroke="${muted}" stroke-width="1.2" stroke-dasharray="3 3"/>`);
+    if (x < W - 60) parts.push(`<text x="${x + 4}" y="${base - 5}">demain</text>`);
   });
 
-  const bw = Math.max(1.5, step - 1.2);
+  // Barres
+  const bw = Math.max(1.4, step - 0.8);
   window.forEach((s, i) => {
     if (s.mmh <= 0) return;
-    const h = Math.max(3, top + barsH - y(s.mmh));
-    parts.push(`<rect x="${i * step + (step - bw) / 2}" y="${top + barsH - h}" width="${bw}" height="${h}" rx="1" fill="${ink}"/>`);
+    const color = c(s.mmh < 2 ? "--bar-1" : s.mmh < 5 ? "--bar-2" : "--bar-3");
+    const h = Math.max(3, base - y(s.mmh));
+    parts.push(`<rect x="${i * step + (step - bw) / 2}" y="${base - h}" width="${bw}" height="${h}" rx="1" fill="${color}" stroke="${ink}" stroke-width="0.5"/>`);
+  });
+  parts.push(`<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="${ink}" stroke-width="2"/>`);
+
+  // Étiquettes d'épisodes, une par ligne au-dessus du graphique
+  tags.forEach((e, k) => {
+    let peakI = e.startIdx;
+    for (let i = e.startIdx; i <= e.endIdx; i++) if (window[i].mmh > window[peakI].mmh) peakI = i;
+    const cx = peakI * step + step / 2;
+    const day = dayWord(e.start, now) ? "dem. " : "";
+    const txt = `${day}${hm(e.start)}–${hm(e.end)} · ${lower(e.kind.label)} · ${num(e.mm)} mm${e.proba != null ? ` · ${e.proba} %` : ""}`;
+    const tw = txt.length * 6 + 14;
+    const tx = Math.max(0, Math.min(cx - 14, W - tw));
+    const ty = tagsTop + k * tagH;
+    const main = e === episodes.reduce((m, x) => (x.mm > m.mm ? x : m), episodes[0]);
+    parts.push(`<line x1="${cx}" x2="${cx}" y1="${ty + 17}" y2="${y(window[peakI].mmh) - 3}" stroke="${ink}" stroke-width="1"/>`);
+    parts.push(`<rect x="${tx}" y="${ty}" width="${tw}" height="17" rx="8.5" fill="${panel}" stroke="${ink}" stroke-width="1.4"/>`);
+    parts.push(`<text class="tag${main ? " main" : ""}" x="${tx + 7}" y="${ty + 12.5}">${txt}</text>`);
   });
 
-  let i = 0;
-  while (i < window.length) {
-    const hourKey = window[i].t.slice(0, 13) + ":00";
-    let j = i + 1;
-    while (j < window.length && window[j].t.slice(0, 13) === window[i].t.slice(0, 13)) j++;
-    const p = proba[hourKey] ?? 0;
-    const x = i * step + 1, w = Math.max(1, (j - i) * step - 2);
-    const fill = p >= 10 ? `url(#tone${Math.min(3, Math.floor(p / 25))})` : "none";
-    parts.push(`<rect x="${x}" y="${probY}" width="${w}" height="${probH}" rx="${probH / 2}" fill="${fill}" stroke="${ink}" stroke-width="1.5"><title>${hm(hourKey)} : ${p} %</title></rect>`);
-    i = j;
-  }
+  [[2, "faible", "--zone-1"], [5, "modérée", "--zone-2"], [max, "forte", "--zone-3"]].forEach(([hi, name, z]) =>
+    parts.push(`<text class="zone-label" x="${W - 4}" y="${y(hi) + 12}" text-anchor="end" stroke="${c(z)}" stroke-width="4" paint-order="stroke">${name}</text>`));
 
+  // Axe horaire
   window.forEach((s, k) => {
     const hh = +s.t.slice(11, 13);
     if (k === 0 || s.t.slice(14, 16) !== "00" || hh % 3 !== 0) return;
     const x = k * step;
-    if (x < 84 || x > W - 14) return; // laisse la place à « maintenant »
+    if (x < 52 || x > W - 14) return; // laisse la place à « maint. »
     parts.push(`<text x="${x}" y="${axisY}" text-anchor="middle">${hh}h</text>`);
   });
-
   const nx = ((now.m % 15) / 15) * step + 1;
-  parts.push(`<line x1="${nx}" x2="${nx}" y1="${top - 6}" y2="${probY + probH}" stroke="${ink}" stroke-width="2"/>`);
-  parts.push(`<path d="M${nx - 5} ${top - 12}h10l-5 7z" fill="${ink}"/>`);
-  parts.push(`<text class="now-label" x="${nx - 1}" y="${axisY}">maintenant</text>`);
+  parts.push(`<line x1="${nx}" x2="${nx}" y1="${top - 6}" y2="${base}" stroke="${ink}" stroke-width="2"/>`);
+  parts.push(`<path d="M${nx - 4.5} ${top - 11}h9l-4.5 6z" fill="${ink}"/>`);
+  parts.push(`<text class="now-label" x="${nx - 1}" y="${axisY}">maint.</text>`);
 
   svg.innerHTML = parts.join("");
 }
 
 /* ---------- Chargement ---------- */
 
+/* ---------- Image du jour NASA (APOD) ---------- */
+// Nouvelle API NASA Science : l'ancienne (api.nasa.gov/planetary/apod) est archivée le 1er décembre 2026.
+const APOD_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic";
+const plainText = (html) => (new DOMParser().parseFromString(html || "", "text/html").body.textContent || "").replace(/\s+/g, " ").trim();
+
+async function loadApod() {
+  try {
+    const list = await getJson(APOD_URL);
+    const a = Array.isArray(list) ? list[0] : list;
+    if (!a || !a.title) return;
+    $("apod-date").textContent = a.date ? new Date(a.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
+    $("apod-title").textContent = plainText(a.title);
+    const credit = plainText(a.copyright || a.credit);
+    $("apod-credit").textContent = credit ? `© ${credit}` : "Crédit : NASA";
+    $("apod-text").textContent = plainText(a.explanation).replace(/^Explanation:\s*/i, "");
+    const link = $("apod-link");
+    link.href = a.permalink || a.url || "https://science.nasa.gov/apod/";
+    if (a.media_type === "image" && a.hdurl) {
+      const img = $("apod-img");
+      img.alt = plainText(a.alt) || plainText(a.title);
+      img.src = a.hdurl;
+    } else {
+      link.textContent = "Voir la vidéo du jour sur le site de la NASA";
+    }
+    $("apod").hidden = false;
+  } catch {
+    // Image du jour facultative : en cas d'échec, la case reste masquée
+  }
+}
+
 async function load() {
+  loadApod(); // l'image du jour se met à jour en même temps que la météo
   const btn = $("refresh");
   btn.disabled = true;
   try {
