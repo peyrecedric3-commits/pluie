@@ -15,7 +15,7 @@
 <link rel="icon" id="favicon" href="icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Long+Cang&family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
 <style>
 /* Une planche de manga : grande case avec le nuage et sa bulle, puis deux cases (frise 24 h, épisodes). */
 :root {
@@ -88,6 +88,9 @@ main {
 .bubble {
   position: relative;
   z-index: 2;
+  justify-self: center;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
   margin: 0.75rem 1rem 0;
   background: var(--panel);
   border: var(--border) solid var(--ink);
@@ -113,6 +116,7 @@ main {
 }
 .bubble h1 em { font-style: normal; color: var(--accent); }
 .bubble p { margin: 0; font-weight: 700; color: var(--muted); text-wrap: pretty; }
+.bubble p:empty { display: none; }
 
 .stage {
   position: relative;
@@ -133,13 +137,14 @@ main {
 }
 /* lignes de vitesse (pluie proche ou en cours) */
 .hero[data-mood="soon"] .stage::before,
-.hero[data-mood="rain"] .stage::before {
+.hero[data-mood="rain"] .stage::before,
+.hero[data-mood="trump"] .stage::before {
   background-image: repeating-conic-gradient(from 0deg at 50% 62%, var(--tone) 0deg 1.4deg, transparent 1.4deg 7deg);
   background-size: auto;
   -webkit-mask-image: radial-gradient(circle at 50% 62%, transparent 30%, #000 70%);
   mask-image: radial-gradient(circle at 50% 62%, transparent 30%, #000 70%);
 }
-.hero[data-mood="rain"] .stage::before { --tone: rgba(20, 20, 20, 0.28); }
+.hero[data-mood="rain"] .stage::before, .hero[data-mood="trump"] .stage::before { --tone: rgba(20, 20, 20, 0.28); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero[data-mood="rain"] .stage::before { --tone: rgba(255, 255, 255, 0.2); } }
 :root[data-theme="dark"] .hero[data-mood="rain"] .stage::before { --tone: rgba(255, 255, 255, 0.2); }
 
@@ -157,6 +162,21 @@ main {
   -webkit-text-stroke: 5px var(--panel);
   paint-order: stroke fill;
   transform: rotate(8deg);
+}
+.shout {
+  position: absolute;
+  z-index: 3;
+  right: 0.7rem;
+  top: 0.8rem;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  text-transform: uppercase;
+  letter-spacing: -0.08em;
+  font: 400 1.7rem/1.1 "Long Cang", "Kaiti SC", "STKaiti", cursive;
+  font-style: italic;
+  color: color-mix(in srgb, var(--ink) 62%, var(--panel));
+  -webkit-text-stroke: 4px var(--panel);
+  paint-order: stroke fill;
 }
 .sfx.left { right: auto; left: 0.9rem; top: 2.2rem; transform: rotate(-8deg); }
 
@@ -184,7 +204,7 @@ main {
 /* Animations du personnage */
 @media (prefers-reduced-motion: no-preference) {
   #nimbo .body { animation: float 3.2s ease-in-out infinite; transform-origin: 50% 80%; }
-  .hero[data-mood="rain"] #nimbo .body { animation-duration: 4.5s; }
+  .hero[data-mood="rain"] #nimbo .body, .hero[data-mood="trump"] #nimbo .body { animation-duration: 4.5s; }
   .hero[data-mood="soon"] #nimbo .body { animation: shiver 0.5s ease-in-out infinite; }
   #nimbo .drop { animation: fall 1.1s cubic-bezier(.5,0,1,1) infinite; }
   #nimbo .twinkle { animation: twinkle 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
@@ -238,6 +258,7 @@ main {
 .strip i.wet { background: var(--bar-2); }
 .strip i.na { border-style: dashed; opacity: 0.45; }
 .strip-axis { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.6875rem; font-weight: 700; color: var(--muted); }
+.src-line:empty { display: none; }
 .src-line { margin: 0.5rem 0 0; font-size: 0.875rem; font-weight: 700; white-space: pre-line; }
 .second .caption { white-space: nowrap; }
 #icon-chart { width: 100%; display: block; margin-top: 0.65rem; overflow: visible; }
@@ -300,12 +321,13 @@ button[disabled] { opacity: 0.55; cursor: default; }
   <section class="panel hero" id="hero" data-mood="day" aria-live="polite">
     <span class="caption" id="caption">PARIS</span>
     <div class="bubble">
-      <h1 id="headline">Je regarde le ciel…</h1>
-      <p id="line">Chargement des prévisions AROME.</p>
+      <h1 id="headline">Chargement…</h1>
+      <p id="line"></p>
     </div>
     <div class="stage">
       <div id="nimbo" role="img" aria-label="Petit nuage"></div>
       <div class="sfx" id="sfx" aria-hidden="true"></div>
+      <div class="shout" id="shout" aria-hidden="true" hidden>Too much<br>raining</div>
     </div>
     <ul class="facts" id="facts"></ul>
   </section>
@@ -325,16 +347,16 @@ button[disabled] { opacity: 0.55; cursor: default; }
     </div>
     <div class="src" id="src-radar" hidden>
       <div class="src-head">
-        <div><b>Radar</b><small>ce qui tombe vraiment</small></div>
+        <b>Radar</b>
         <span class="state" id="radar-state"></span>
       </div>
       <div class="strip" id="radar-strip"></div>
-      <div class="strip-axis"><span id="radar-from"></span><span>2 dernières heures</span><span id="radar-to"></span></div>
+      <div class="strip-axis"><span id="radar-from"></span><span id="radar-to"></span></div>
       <p class="src-line" id="radar-line"></p>
     </div>
     <div class="src" id="src-icon" hidden>
       <div class="src-head">
-        <div><b>ICON-D2</b><small>prévision du service météo allemand</small></div>
+        <b>ICON-D2</b>
         <span class="state" id="icon-state"></span>
       </div>
       <svg id="icon-chart" role="img" aria-label="Pluie prévue par ICON-D2 sur 24 heures"></svg>
@@ -350,7 +372,7 @@ button[disabled] { opacity: 0.55; cursor: default; }
     <a id="apod-link" href="https://science.nasa.gov/apod/" target="_blank" rel="noopener"><img id="apod-img" class="apod-img" alt="" decoding="async"></a>
     <h3 id="apod-title"></h3>
     <p class="meta" id="apod-credit"></p>
-    <details><summary>Explication (en anglais)</summary><p id="apod-text"></p></details>
+    <details><summary>Explication (EN)</summary><p id="apod-text"></p></details>
   </section>
 
   <section class="panel mars" id="mars" hidden>
@@ -359,11 +381,11 @@ button[disabled] { opacity: 0.55; cursor: default; }
       <span id="mars-date"></span>
     </div>
     <div class="mars-grid" id="mars-grid"></div>
-    <p class="meta">Dernières photos couleur du rover, brutes, telles que reçues par la NASA. Certaines montrent le rover lui-même. © NASA/JPL-Caltech/ASU</p>
+    <p class="meta">© NASA/JPL-Caltech/ASU</p>
   </section>
 
   <footer>
-    <p>Modèle AROME · <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · ICON-D2 (DWD) · Radar : <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a> · Images : <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">NASA APOD</a>, <a href="https://mars.nasa.gov/mars2020/multimedia/raw-images/" target="_blank" rel="noopener">Perseverance</a><br><span id="updated"></span></p>
+    <p><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a> · <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">NASA</a><br><span id="updated"></span></p>
     <button type="button" id="refresh">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
       Actualiser
@@ -556,9 +578,9 @@ const blush = (x, y) =>
 const eyesOpen = () => [98, 136].map((x) =>
   `<ellipse cx="${x}" cy="110" rx="8.5" ry="12" fill="${INK}"/><circle cx="${x - 3}" cy="104.5" r="3.8" fill="#fff"/><circle cx="${x + 3}" cy="115" r="1.7" fill="#fff"/>`).join("");
 
-function nimbo(mood, level = 1) {
-  const fill = { day: "#ffffff", night: "#ffffff", soon: "#dfe3e8", rain: "#4a505b" }[mood];
-  let back = "", face = "", front = "";
+function nimbo(mood, level = 1, fillOverride = null) {
+  const fill = fillOverride || { day: "#ffffff", night: "#ffffff", soon: "#dfe3e8", rain: "#4a505b", trump: "#4a505b" }[mood];
+  let back = "", under = "", face = "", front = "";
 
   if (mood === "day") {
     back = `<g transform="translate(58 58)">${[...Array(8)].map((_, i) => `<path d="M0-33V-43" transform="rotate(${i * 45})" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>`).join("")}
@@ -599,12 +621,30 @@ function nimbo(mood, level = 1) {
     }).join("");
   }
 
+  if (mood === "trump") {
+    // Le nuage de pluie d'origine, avec deux clins d'œil discrets : une petite mèche blonde et la cravate rouge
+    under = `<path d="M110 150h14l-3 21h-8z" fill="#b71c1c" stroke="${INK}" stroke-width="2.6" stroke-linejoin="round"/>
+      <path d="M113 170h8l5 26-9 9-9-9z" fill="#d32f2f" stroke="${INK}" stroke-width="2.6" stroke-linejoin="round"/>
+      <path d="M116 176l3 7M115 187l3 6" stroke="#9a1515" stroke-width="1.5" stroke-linecap="round"/>`;
+    face = `<path d="M98 66v14M108 64v16M118 64v16M128 66v14" stroke="#fff" stroke-opacity=".35" stroke-width="2.5" stroke-linecap="round"/>` +
+      [98, 136].map((x) => `<path d="M${x - 10} 108a10 11 0 0 0 20 0z" fill="#fff" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><circle cx="${x}" cy="113" r="4.2" fill="${INK}"/><path d="M${x - 12} 108h24" stroke="${INK}" stroke-width="4.5" stroke-linecap="round"/>`).join("") +
+      `<path d="M106 133q11-9 22 0" stroke="${INK}" stroke-width="4" fill="none" stroke-linecap="round"/>` +
+      `<path d="M150 118q-5 8 0 11q5-3 0-11z" fill="#cfe6ff" stroke="${INK}" stroke-width="2.2"/>` +
+      // petite mèche blonde rabattue, qui suit la forme du nuage, avec frange et pointe retroussée
+      `<path d="M66 76C62 48 88 30 118 30C142 30 160 40 170 51C175 46 177 40 175 33C187 43 186 59 172 63C156 53 137 49 117 51C99 53 84 61 73 77Z" fill="#f5cd55" stroke="${INK}" stroke-width="3.4" stroke-linejoin="round"/>` +
+      `<path d="M73 77C83 62 101 55 121 55C107 61 98 69 94 80C88 75 80 74 73 77Z" fill="#f5cd55" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>` +
+      `<path d="M76 64C92 46 124 38 160 46M88 54C104 44 128 41 150 43" stroke="#d9a32c" stroke-width="2" fill="none" stroke-linecap="round"/>` +
+      `<path d="M98 37C114 32 134 32 150 37" stroke="#fff3b0" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".9"/>`;
+    front = [60, 88, 148, 176].map((x, i) => `<path class="drop" style="animation-delay:${(i * 0.3).toFixed(2)}s" d="M${x} ${176 + (i % 2) * 10}q-6 9 0 13q6-4 0-13z" fill="#5c8dff" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`).join("");
+  }
+
   return `<svg viewBox="0 0 240 215" xmlns="http://www.w3.org/2000/svg">
     ${back}
     <g class="body">
+      ${under}
       <g fill="${INK}" stroke="${INK}" stroke-width="10">${circles("")}</g>
       <g fill="${fill}">${circles("")}</g>
-      <path d="M78 76q10-14 26-12" stroke="#fff" stroke-opacity="${mood === "rain" ? 0.3 : 0.9}" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M78 76q10-14 26-12" stroke="#fff" stroke-opacity="${mood === "trump" ? 0 : mood === "rain" ? 0.3 : 0.9}" stroke-width="5" fill="none" stroke-linecap="round"/>
       ${face}
     </g>
     ${front}
@@ -629,33 +669,31 @@ function render() {
   const end = window.length ? addMinutes(window[window.length - 1].t, 15) : null;
   const radarLast = data.radar?.fresh ? data.radar.frames.at(-1) : null;
   if (radarLast?.wet && !next?.ongoing) {
-    mood = "rain";
-    title = "Il pleut !";
-    line = `Pluie observée au radar à ${radarLast.time}, mais non prévue par le modèle AROME : durée et quantité inconnues.`;
-    sfx = "ポツポツ";
-    radarFacts = ["Observée au radar", radarLast.time];
+    mood = "trump";
+    title = "Il pleut";
+    line = "";
+    sfx = "";
+    radarFacts = [`Radar ${radarLast.time}`];
   } else if (!next) {
     mood = night ? "night" : "day";
-    title = "Pas de pluie !";
-    line = night
-      ? `Nuit tranquille, rien de prévu d'ici ${end ? dayWord(end, now) + hm(end) : "demain"}. Je dors…`
-      : `Rien de prévu d'ici ${end ? dayWord(end, now) + hm(end) : "demain"}. Laisse le parapluie à la maison.`;
+    title = "Pas de pluie";
+    line = end ? `Jusqu'à ${dayWord(end, now)}${hm(end)}` : "";
     sfx = night ? "スヤスヤ" : "キラッ";
   } else if (next.ongoing) {
     mood = "rain";
-    title = next.kind.level === 0 ? "Il bruine…" : "Il pleut !";
-    line = `Pluie ${lower(next.kind.label)} jusqu'à ${dayWord(next.end, now)}${hm(next.end)}. ${next.kind.level >= 2 ? "Prends vraiment un parapluie." : "Une capuche suffira."}`;
+    title = next.kind.level === 0 ? "Il bruine" : "Il pleut";
+    line = `Jusqu'à ${dayWord(next.end, now)}${hm(next.end)}`;
     sfx = next.kind.level <= 1 ? "ポツポツ" : "ザーザー";
   } else if (next.inMinutes <= SOON) {
     mood = "soon";
-    title = `Pluie ${dayWord(next.start, now)}à ${hm(next.start)} !`;
+    title = `Pluie ${dayWord(next.start, now)}à ${hm(next.start)}`;
     const dans = next.inMinutes < 60 ? `${next.inMinutes} min` : duration(Math.round(next.inMinutes / 5) * 5);
-    line = `Dans ${dans}. Pluie ${lower(next.kind.label)} pendant ${duration(next.minutes)}, prévois un parapluie.`;
+    line = `Dans ${dans}`;
     sfx = "ドキッ"; sfxLeft = true;
   } else {
     mood = night ? "night" : "day";
     title = `Sec jusqu'à ${dayWord(next.start, now)}${hm(next.start)}`;
-    line = `Ensuite, pluie ${lower(next.kind.label)} pendant ${duration(next.minutes)}. Tu as le temps.`;
+    line = `Puis pluie ${lower(next.kind.label)}`;
     sfx = night ? "スヤスヤ" : "キラッ";
   }
 
@@ -665,7 +703,8 @@ function render() {
     $("nimbo").dataset.level = String(next?.kind.level);
   }
   hero.dataset.mood = mood;
-  $("nimbo").setAttribute("aria-label", { day: "Petit nuage blanc souriant", night: "Petit nuage qui dort", soon: "Petit nuage inquiet", rain: "Petit nuage noir qui pleut" }[mood]);
+  $("shout").hidden = mood !== "trump";
+  $("nimbo").setAttribute("aria-label", { day: "Petit nuage blanc souriant", night: "Petit nuage qui dort", soon: "Petit nuage inquiet", rain: "Petit nuage noir qui pleut", trump: "Nuage caricaturant Donald Trump" }[mood]);
   $("headline").textContent = title;
   $("line").textContent = line;
   const s = $("sfx");
@@ -676,7 +715,7 @@ function render() {
 
   // Frise
   const total = window.reduce((sum, x) => sum + x.mm, 0);
-  $("total").textContent = total > 0 ? `${num(total)} mm au total` : "Rien à l'horizon";
+  $("total").textContent = total > 0 ? `${num(total)} mm` : "";
   drawChart(a);
 
   renderSecond(a);
@@ -701,16 +740,16 @@ function renderSecond(arome) {
     const st = $("radar-state");
     if (!radar.fresh) {
       st.textContent = "Image ancienne"; st.className = "state";
-      $("radar-line").textContent = `Dernière image radar à ${last.time}.`;
+      $("radar-line").textContent = `Image de ${last.time}`;
     } else if (last.wet) {
       st.textContent = "Il pleut"; st.className = "state wet";
       let k = f.length - 1;
       while (k > 0 && f[k - 1].wet) k--;
-      $("radar-line").textContent = k === 0 ? `Pluie observée depuis au moins ${f[0].time}.` : `Pluie observée depuis ${f[k].time}.`;
+      $("radar-line").textContent = k === 0 ? "Depuis plus de 2 h" : `Depuis ${f[k].time}`;
     } else {
       st.textContent = "Sec"; st.className = "state";
       const lastWet = [...f].reverse().find((x) => x.wet);
-      $("radar-line").textContent = lastWet ? `Dernière pluie observée à ${lastWet.time}.` : "Aucune pluie observée ces 2 dernières heures.";
+      $("radar-line").textContent = lastWet ? `Dernière pluie à ${lastWet.time}` : "";
     }
   }
 
@@ -724,7 +763,7 @@ function renderSecond(arome) {
     else { st.textContent = `Pluie ${dayWord(next.start, now) ? "demain " : ""}à ${hm(next.start)}`; st.className = "state wet"; }
     $("icon-line").textContent = icon.episodes.length
       ? icon.episodes.slice(0, 2).map((e) => `${dayWord(e.start, now) ? "dem. " : ""}${hm(e.start)}–${hm(e.end)} · ${lower(e.kind.label)} · ${num(e.mm)} mm`).join("\n")
-      : "Pas de pluie prévue sur 24 h.";
+      : "";
     drawMini(icon);
     iconSoon = icon.episodes.some((e) => e.inMinutes <= SOON);
   }
@@ -732,8 +771,8 @@ function renderSecond(arome) {
   // Verdict : AROME et ICON-D2 voient-ils de la pluie dans les 3 prochaines heures ?
   const aromeSoon = arome.episodes.some((e) => e.inMinutes <= SOON);
   $("agree").textContent = iconSoon === null ? "" : aromeSoon === iconSoon
-    ? `AROME d'accord (3 h)`
-    : `AROME pas d'accord (3 h)`;
+    ? "= AROME à 3 h"
+    : "≠ AROME à 3 h";
 }
 
 // Mini-frise ICON-D2, mêmes couleurs que la frise AROME
@@ -858,7 +897,7 @@ async function loadApod() {
     if (!a || !a.title) return;
     $("apod-date").textContent = a.date ? new Date(a.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
     $("apod-title").textContent = plainText(a.title);
-    const credit = plainText(a.copyright || a.credit);
+    const credit = plainText(a.copyright || a.credit).replace(/^(image )?credit( (&|and) copyright)?\s*:\s*/i, "");
     $("apod-credit").textContent = credit ? `© ${credit}` : "Crédit : NASA";
     $("apod-text").textContent = plainText(a.explanation).replace(/^Explanation:\s*/i, "");
     const link = $("apod-link");
@@ -868,7 +907,7 @@ async function loadApod() {
       img.alt = plainText(a.alt) || plainText(a.title);
       img.src = a.hdurl;
     } else {
-      link.textContent = "Voir la vidéo du jour sur le site de la NASA";
+      link.textContent = "Voir la vidéo";
     }
     $("apod").hidden = false;
   } catch {
@@ -926,16 +965,16 @@ async function load() {
     data = await fetchForecast();
     loadedAt = Date.now();
     const n = parisNow();
-    $("updated").textContent = DEMO ? "Données d'exemple" : `Mis à jour à ${n.h}h${pad(n.m)}`;
+    $("updated").textContent = DEMO ? "Données d'exemple" : `Mis à jour ${n.h}h${pad(n.m)}`;
     render();
   } catch (err) {
     if (!data) {
       $("hero").dataset.mood = "soon";
       $("nimbo").innerHTML = nimbo("soon");
-      $("headline").textContent = "Je ne vois rien…";
-      $("line").textContent = `Open-Meteo ne répond pas. Vérifie ta connexion puis touche Actualiser. (${err.message || err})`;
+      $("headline").textContent = "Hors ligne";
+      $("line").textContent = `Touche Actualiser (${err.message || err})`;
     } else {
-      $("updated").textContent = "Échec de la mise à jour, données précédentes affichées";
+      $("updated").textContent = "Échec de la mise à jour";
     }
   } finally {
     btn.disabled = false;
